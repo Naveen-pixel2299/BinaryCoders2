@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Smart Cold Chain Digital Twin</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: #0f172a; overflow: hidden; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+        }
+
+        #canvas-container {
+            width: 100%; height: 100%; min-height: 500px;
+            border-radius: 1rem; overflow: hidden; position: relative;
+            background: #e2e8f0; cursor: grab;
+        }
+        #canvas-container:active { cursor: grabbing; }
+        
+        .alarm-bg { animation: bg-flash 1s infinite alternate; }
+        @keyframes bg-flash { from { background-color: #f1f5f9; } to { background-color: #fee2e2; } }
+
+        .agent-active { 
+            border-color: #3b82f6 !important; 
+            background-color: #eff6ff !important; 
+            box-shadow: 0 0 12px rgba(59,130,246,0.4); 
+        }
+        .agent-active i { color: #2563eb !important; animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+        .snow-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; z-index: 10;
+            background: radial-gradient(circle at center, transparent 0%, rgba(255,255,255,0.1) 100%);
+        }
+    </style>
+</head>
+<body class="flex h-screen w-full antialiased" id="main-body">
+
+    <!-- Sidebar: Main Agent Orchestrator -->
+    <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-20 shadow-xl transition-all h-full text-slate-300">
+        <div class="h-16 flex items-center px-6 border-b border-slate-800 shrink-0 bg-slate-950">
+            <i class="fa-solid fa-network-wired text-blue-500 text-2xl mr-3"></i>
+            <span class="font-bold text-lg tracking-wide text-white">Main AI Core</span>
+        </div>
+        
+        <div class="p-4 border-b border-slate-800 bg-slate-900/50">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">System Status</span>
+                <span id="main-agent-status" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">STANDBY</span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div id="main-progress" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-4 px-3 space-y-2 overflow-y-auto custom-scrollbar">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 px-2">Sub-Agents (7)</p>
+            
+            <div id="sa-1" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-seedling text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-1: Cultivation</p>
+                    <p class="text-[10px] text-slate-400">Growth & Wt Calc</p>
+                </div>
+            </div>
+            <div id="sa-2" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-shower text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-2: Washer</p>
+                    <p class="text-[10px] text-slate-400">Cleaning</p>
+                </div>
+            </div>
+            <div id="sa-3" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-wind text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-3: Dryer</p>
+                    <p class="text-[10px] text-slate-400">Moisture Removal</p>
+                </div>
+            </div>
+            <div id="sa-4" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-box-open text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-4: Packager</p>
+                    <p class="text-[10px] text-slate-400">Color Wrapping</p>
+                </div>
+            </div>
+            <div id="sa-5" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-route text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-5: Router</p>
+                    <p class="text-[10px] text-slate-400">Container Assign</p>
+                </div>
+            </div>
+            <div id="sa-6" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-temperature-snow text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-6: Env Ctrl</p>
+                    <p class="text-[10px] text-slate-400">Temp & Capacity</p>
+                </div>
+            </div>
+            <div id="sa-7" class="p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3">
+                <i class="fa-solid fa-truck text-slate-400 text-lg w-5 text-center"></i>
+                <div class="flex-1">
+                    <p class="text-xs font-bold text-white">SA-7: Logistics</p>
+                    <p class="text-[10px] text-slate-400">Truck Dispatch</p>
+                </div>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        <!-- Header -->
+        <header class="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 shrink-0 z-10 shadow-sm">
+            <div class="flex items-center gap-4">
+                <h1 class="text-lg sm:text-xl font-bold text-slate-800">NE Hills Cold Chain <span class="text-sm font-medium text-slate-500 hidden md:inline ml-2">300m x 150m Scale</span></h1>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button id="btn-start" onclick="startContinuousSimulation()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow-md transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-play"></i> Start Agents
+                </button>
+                <button id="btn-stop" onclick="stopSimulation()" class="bg-slate-200 text-slate-700 hover:bg-slate-300 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors flex items-center gap-2 hidden">
+                    <i class="fa-solid fa-stop"></i> Stop Sys
+                </button>
+                
+                <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                
+                <button id="btn-fault" onclick="triggerFault()" class="bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Inject Fault
+                </button>
+                <button id="btn-clear-fault" onclick="clearFault()" class="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors flex items-center gap-2 hidden">
+                    <i class="fa-solid fa-check-circle"></i> Clear Fault
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Grid -->
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 grid grid-cols-1 xl:grid-cols-4 gap-6">
+            
+            <!-- 3D Canvas Section (Takes 3 columns) -->
+            <div class="xl:col-span-3 flex flex-col gap-4">
+                <div class="glass-panel border-slate-200 rounded-2xl p-1 flex flex-col h-[65vh] xl:h-[75vh] relative shadow-inner">
+                    <!-- Overlay Controls -->
+                    <div class="absolute top-4 left-4 z-10 flex gap-2">
+                        <button onclick="toggleDismantle()" id="btn-dismantle" class="bg-white/95 hover:bg-white border-2 border-slate-300 text-xs font-bold px-4 py-2.5 rounded-lg transition-colors text-slate-800 shadow-lg backdrop-blur flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-blue-600 text-lg"></i> Explode Components
+                        </button>
+                    </div>
+
+                    <div id="canvas-container" class="w-full h-full rounded-xl shadow-inner border border-slate-200/50">
+                        <div class="snow-overlay"></div>
+                    </div>
+                    
+                    <!-- Hardware Inspector Overlay -->
+                    <div id="hardware-inspector" class="absolute top-4 right-4 bg-white/95 backdrop-blur border border-blue-200 p-4 rounded-xl hidden flex-col gap-2 z-10 w-64 shadow-xl transition-opacity">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 class="text-sm font-bold text-slate-800" id="hw-title">Component</h3>
+                            <button onclick="closeInspector()" class="text-slate-400 hover:text-rose-500 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <p class="text-[10px] text-slate-600 leading-relaxed" id="hw-desc">Description here.</p>
+                        <div class="mt-2 bg-slate-50 p-2 rounded border border-slate-200">
+                            <span class="text-xs font-mono text-blue-600 font-bold block" id="hw-data">Status: Online</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side Dashboards -->
+            <div class="flex flex-col gap-4">
+                
+                <!-- SA-1 & SA-5: Processing Data -->
+                <div class="glass-panel border border-slate-200 rounded-2xl p-4">
+                    <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Processing Telemetry</h2>
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3 text-center">
+                        <span class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Detected Type</span>
+                        <span id="ai-type" class="text-lg font-bold text-slate-800">--</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                            <span class="block text-[9px] text-blue-500 font-bold uppercase mb-1">Pre-Wash Wt</span>
+                            <span id="wt-pre" class="text-sm font-bold text-blue-800 font-mono">-- g</span>
+                        </div>
+                        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                            <span class="block text-[9px] text-emerald-500 font-bold uppercase mb-1">Post-Wash Wt</span>
+                            <span id="wt-post" class="text-sm font-bold text-emerald-800 font-mono">-- g</span>
+                        </div>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-xl border border-purple-100 flex items-center justify-between">
+                        <span class="text-[10px] text-purple-700 font-bold uppercase">Routing To</span>
+                        <span id="ai-route" class="text-xs font-bold text-purple-900 bg-white px-2 py-1 rounded shadow-sm">Pending</span>
+                    </div>
+                </div>
+
+                <!-- SA-6: Capacity & Env Panel -->
+                <div class="glass-panel border border-slate-200 rounded-2xl p-4">
+                    <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3 flex justify-between">
+                        <span>SA-6 Storage Monitor</span>
+                        <i class="fa-solid fa-boxes-stacked text-blue-500"></i>
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-1">
+                                <span>CW1 (Carrot) <span class="text-slate-400">0-1°C</span></span>
+                                <span id="cap-c1">0 / 3</span>
+                            </div>
+                            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div id="bar-c1" class="bg-orange-400 h-full w-0 transition-all"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-1">
+                                <span>CW2 (Tomato) <span class="text-slate-400">10-13°C</span></span>
+                                <span id="cap-c2">0 / 3</span>
+                            </div>
+                            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div id="bar-c2" class="bg-red-400 h-full w-0 transition-all"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-1">
+                                <span>CW3 (Cabbage) <span class="text-slate-400">0°C</span></span>
+                                <span id="cap-c3">0 / 3</span>
+                            </div>
+                            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div id="bar-c3" class="bg-green-400 h-full w-0 transition-all"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="glass-panel border-slate-200 rounded-2xl p-4 flex-1 min-h-[150px] flex flex-col">
+                    <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Live Temperatures</h2>
+                    <div class="flex-1 relative w-full h-full">
+                        <canvas id="telemetryChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const state = {
+            isRunning: false,
+            faultActive: false,
+            dismantled: false,
+            maxCap: 3, // Lowered for faster simulation turnaround
+            activeAgentIndex: 0,
+            
+            // Sub-Agent 7 State
+            logisticsStatus: 'IDLE', // IDLE, DISPATCHED, DELIVERING, RETURNING
+            targetContainerIdx: -1,
+            
+            cycleIndex: 0,
+            produceTypes: ['Carrot', 'Tomato', 'Cabbage'],
+            
+            containers: [
+                { temp: 0.5, target: 0.5, hum: 85, solarPower: 120, battery: 100, fansActive: false, inventory: 0, max: 3, name: 'CW1: Carrots' },
+                { temp: 11.5, target: 11.5, hum: 82, solarPower: 120, battery: 100, fansActive: false, inventory: 0, max: 3, name: 'CW2: Tomatoes' },
+                { temp: 0.0, target: 0.0, hum: 88, solarPower: 120, battery: 100, fansActive: false, inventory: 0, max: 3, name: 'CW3: Cabbages' }
+            ],
+            history: { c1: Array(20).fill(0.5), c2: Array(20).fill(11.5), c3: Array(20).fill(0.0) }
+        };
+
+        // Audio System
+        let audioCtx, oscillator, gainNode, alarmInterval;
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        
+        function playAlarm() {
+            if (!audioCtx) initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (alarmInterval) return;
+            document.getElementById('main-body').classList.add('alarm-bg');
+            alarmInterval = setInterval(() => {
+                oscillator = audioCtx.createOscillator(); gainNode = audioCtx.createGain();
+                oscillator.type = 'square'; oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.05);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+                oscillator.start(audioCtx.currentTime); oscillator.stop(audioCtx.currentTime + 0.5);
+            }, 600);
+        }
+
+        function stopAlarm() {
+            if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+            document.getElementById('main-body').classList.remove('alarm-bg');
+        }
+
+        // Chart.js
+        const ctxChart = document.getElementById('telemetryChart').getContext('2d');
+        Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
+        const telemetryChart = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+                labels: Array(20).fill(''),
+                datasets: [
+                    { label: 'CW1', data: state.history.c1, borderColor: '#fb923c', borderWidth: 2, tension: 0.4, pointRadius: 0 },
+                    { label: 'CW2', data: state.history.c2, borderColor: '#f87171', borderWidth: 2, tension: 0.4, pointRadius: 0 },
+                    { label: 'CW3', data: state.history.c3, borderColor: '#4ade80', borderWidth: 2, tension: 0.4, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 8, font: {size: 9} } } },
+                scales: { x: { display: false }, y: { type: 'linear', min: -2, max: 15, grid: { color: '#e2e8f0' } } },
+                animation: { duration: 200 }
+            }
+        });
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xdbeafe); // Snowy sky blue
+        scene.fog = new THREE.FogExp2(0xdbeafe, 0.005); // Add fog for massive scale
+        
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 1000);
+        camera.position.set(0, 40, 120); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; controls.dampingFactor = 0.05; 
+        controls.maxPolarAngle = Math.PI / 2 - 0.05;
+        controls.maxDistance = 250;
+
+        // Lighting
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x94a3b8, 0.6));
+        const sunLight = new THREE.DirectionalLight(0xfffae6, 1.2);
+        sunLight.position.set(50, 80, 50); sunLight.castShadow = true;
+        sunLight.shadow.camera.near = 1;
+        sunLight.shadow.camera.far = 300;
+        sunLight.shadow.camera.left = -150;
+        sunLight.shadow.camera.right = 150;
+        sunLight.shadow.camera.top = 150;
+        sunLight.shadow.camera.bottom = -150;
+        sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.bias = -0.001;
+        scene.add(sunLight);
+
+        // Main Ground (300m x 150m)
+        const groundGeo = new THREE.PlaneGeometry(300, 150, 64, 32);
+        // Perturb vertices for hilly look
+        const pos = groundGeo.attributes.position;
+        for(let i=0; i<pos.count; i++) {
+            let px = pos.getX(i); let py = pos.getY(i);
+            // Don't perturb the central facility area or road
+            if(Math.abs(px) > 130 || Math.abs(py) > 60) {
+                pos.setZ(i, Math.random() * 3 + Math.sin(px*0.05)*2);
+            }
+        }
+        groundGeo.computeVertexNormals();
+        
+        // Snow/Frost material
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.9, metalness: 0.1 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+        // Distant Hills
+        const hillMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 1.0, flatShading: true });
+        for(let i=0; i<8; i++) {
+            const h = new THREE.Mesh(new THREE.SphereGeometry(20 + Math.random()*15, 7, 7), hillMat);
+            h.position.set((Math.random()-0.5)*280, -5, (Math.random()>0.5? 1:-1) * (80 + Math.random()*20));
+            scene.add(h);
+        }
+
+        // Snow Particles
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPos = [];
+        for(let i=0; i<1500; i++) {
+            snowPos.push((Math.random()-0.5)*300, Math.random()*80, (Math.random()-0.5)*150);
+        }
+        snowGeo.setAttribute('position', new THREE.Float32BufferAttribute(snowPos, 3));
+        const snowMat = new THREE.PointsMaterial({color: 0xffffff, size: 0.6, transparent: true, opacity: 0.8});
+        const snowSys = new THREE.Points(snowGeo, snowMat);
+        scene.add(snowSys);
+
+        const dirtMat = new THREE.MeshStandardMaterial({ color: 0x4a3f35, roughness: 1 });
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.4 });
+        const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.7, roughness: 0.3 });
+        const waterMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 });
+        const pcbMat = new THREE.MeshStandardMaterial({ color: 0x047857, roughness: 0.8 });
+        const chipMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+        const solarPanelMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.1 });
+        const arduinoBlueMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.7 });
+        const containerMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2, transparent: true, opacity: 1, side: THREE.DoubleSide });
+
+        // Wrappers (70% opacity)
+        const bagMats = {
+            'Carrot': new THREE.MeshPhysicalMaterial({ color: 0xfdba74, transparent: true, opacity: 0.7, roughness: 0.2 }),
+            'Tomato': new THREE.MeshPhysicalMaterial({ color: 0xfca5a5, transparent: true, opacity: 0.7, roughness: 0.2 }),
+            'Cabbage': new THREE.MeshPhysicalMaterial({ color: 0x86efac, transparent: true, opacity: 0.7, roughness: 0.2 })
+        };
+
+        const vegMats = {
+            carrot: new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.5 }),
+            cabbage: new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.7 }),
+            tomato: new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.3 }),
+            stem: new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.9 })
+        };
+
+        function createCarrot() {
+            const grp = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.8, 16), vegMats.carrot); body.rotation.x = Math.PI; body.position.y = 0.4; body.castShadow = true;
+            const leaves = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0, 0.3), vegMats.stem); leaves.position.y = 0.9;
+            grp.add(body, leaves); return grp;
+        }
+        function createCabbage() {
+            const body = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35, 1), vegMats.cabbage);
+            body.position.y = 0.35; body.scale.set(1, 0.8, 1); body.castShadow = true; return body;
+        }
+        function createTomato() {
+            const grp = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), vegMats.tomato); body.scale.set(1, 0.85, 1); body.position.y = 0.25; body.castShadow = true;
+            const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0, 0.05, 5), vegMats.stem); crown.position.y = 0.48;
+            grp.add(body, crown); return grp;
+        }
+
+        // X ranges: Fields (-120), Washer(-60), Dryer(-40), Packer(-20), Containers(40), Road(100)
+        
+        // 3 Farm Fields (40x40 to fit inside 150m Z-axis nicely)
+        const farmZPositions = [-50, 0, 50]; 
+        farmZPositions.forEach((z, i) => {
+            const patch = new THREE.Mesh(new THREE.BoxGeometry(40, 0.2, 40), dirtMat);
+            patch.position.set(-110, 0.1, z); patch.receiveShadow = true; scene.add(patch);
+            // Farm Sign
+            const signGrp = new THREE.Group(); signGrp.position.set(-90, 0, z - 18);
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4), darkMetalMat); pole.position.y = 2; signGrp.add(pole);
+            const board = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2, 4), new THREE.MeshStandardMaterial({color:0xffffff})); board.position.set(0, 3.5, 0); signGrp.add(board);
+            scene.add(signGrp);
+        });
+
+        // Main Conveyor Trunk (connecting fields to center processing)
+        const trunkConveyor = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 110), darkMetalMat);
+        trunkConveyor.position.set(-80, 0.5, 0); trunkConveyor.castShadow = true; trunkConveyor.receiveShadow = true; scene.add(trunkConveyor);
+        
+        // Connectors from fields to trunk
+        farmZPositions.forEach(z => {
+            const c = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 4), darkMetalMat);
+            c.position.set(-85, 0.5, z); c.castShadow = true; scene.add(c);
+        });
+
+        // Center Processing Conveyor
+        const processConveyor = new THREE.Mesh(new THREE.BoxGeometry(70, 0.5, 4), darkMetalMat);
+        processConveyor.position.set(-45, 0.5, 0); processConveyor.castShadow = true; scene.add(processConveyor);
+
+        // SA-2: Washer
+        const washBasin = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 6), metalMat);
+        washBasin.position.set(-60, 1.25, 0); scene.add(washBasin);
+        const water = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.4, 5.6), waterMat);
+        water.position.set(-60, 1.26, 0); scene.add(water);
+
+        // SA-3: Dryer
+        const dryZone = new THREE.Group(); dryZone.position.set(-40, 0, 0); scene.add(dryZone);
+        const dryArchL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 6), darkMetalMat); dryArchL.position.set(-2.5, 2.0, 0); dryZone.add(dryArchL);
+        const dryArchR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 6), darkMetalMat); dryArchR.position.set(2.5, 2.0, 0); dryZone.add(dryArchR);
+        const dryArchTop = new THREE.Mesh(new THREE.BoxGeometry(5, 0.4, 6), metalMat); dryArchTop.position.set(0, 4.2, 0); dryZone.add(dryArchTop);
+        window.dryerFans = [];
+        for(let z=-1.5; z<=1.5; z+=3) {
+            for(let x=-1; x<=1; x+=2) {
+                const bladeGrp = new THREE.Group(); bladeGrp.position.set(x, 4.0, z);
+                for(let j=0; j<4; j++) {
+                    const blade = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 0.3), metalMat); blade.position.x = 0.6;
+                    const pivot = new THREE.Group(); pivot.rotation.y = (Math.PI/2) * j; pivot.add(blade); bladeGrp.add(pivot);
+                }
+                dryZone.add(bladeGrp); window.dryerFans.push(bladeGrp);
+            }
+        }
+
+        // SA-4/5: Packager & AI Router
+        const packZone = new THREE.Group(); packZone.position.set(-20, 0, 0); scene.add(packZone);
+        const packArch = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 6), metalMat); packArch.position.set(0, 4.0, 0); packZone.add(packArch);
+        const laserMat = new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+        window.aiLaser = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), laserMat);
+        window.aiLaser.rotation.x = Math.PI / 2; window.aiLaser.position.set(0, 10, 0); packZone.add(window.aiLaser);
+
+        // Branching Conveyors to Containers
+        const branchConveyor = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 100), darkMetalMat);
+        branchConveyor.position.set(20, 0.5, 0); branchConveyor.castShadow = true; scene.add(branchConveyor);
+        
+        farmZPositions.forEach(z => {
+            const c = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 4), darkMetalMat);
+            c.position.set(25, 0.5, z); c.castShadow = true; scene.add(c);
+        });
+
+        const interactableObjects = [];
+        window.explodableParts = [];
+        window.containerDoors = [];
+        window.acFans = [];
+        window.containerGroups = [];
+        window.lcdCanvases = [];
+
+        function registerExplode(mesh, targetVec) { window.explodableParts.push({ mesh, orig: mesh.position.clone(), target: mesh.position.clone().add(targetVec) }); }
+
+        function createArduinoUno(id, title, desc) {
+            const grp = new THREE.Group();
+            const pcb = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.6), arduinoBlueMat); grp.add(pcb);
+            const chip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.16), chipMat); chip.position.set(-0.02, -0.1, 0); grp.add(chip);
+            
+            // Wiring details based on reference
+            const wireMat1 = new THREE.MeshBasicMaterial({color: 0xff0000}); // Red
+            const wireMat2 = new THREE.MeshBasicMaterial({color: 0xfacc15}); // Yellow
+            const wireMat3 = new THREE.MeshBasicMaterial({color: 0x9333ea}); // Purple
+            const w1 = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4), wireMat1); w1.position.set(0.06, 0.3, 0.1); w1.rotation.z = Math.PI/4; grp.add(w1);
+            const w2 = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4), wireMat2); w2.position.set(0.06, 0.3, -0.05); w2.rotation.z = Math.PI/4; grp.add(w2);
+            const w3 = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.4), wireMat3); w3.position.set(0.06, 0.3, -0.2); w3.rotation.z = Math.PI/4; grp.add(w3);
+
+            pcb.userData = { id, title, desc }; interactableObjects.push(pcb);
+            return grp;
+        }
+
+        function createLCD(index) {
+            const lcdPcb = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.4, 1.0), pcbMat);
+            
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#a3e635'; ctx.fillRect(0, 0, 256, 64);
+            ctx.fillStyle = '#000000'; ctx.font = 'bold 36px monospace'; ctx.fillText('T:-- H:--', 10, 45);
+            const tex = new THREE.CanvasTexture(canvas);
+            window.lcdCanvases.push({canvas, ctx, tex});
+
+            const screenMat = new THREE.MeshBasicMaterial({map: tex});
+            const lcdScrn = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.25, 0.8), screenMat); 
+            lcdScrn.position.x = -0.01; lcdPcb.add(lcdScrn);
+            
+            // Resistors (Green/Striped) & Potentiometer from reference
+            const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.1), darkMetalMat); pot.position.set(-0.03, -0.1, 0.4); lcdPcb.add(pot);
+            const res1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.1), new THREE.MeshBasicMaterial({color:0x86efac})); res1.position.set(-0.03, -0.15, 0.2); lcdPcb.add(res1);
+
+            lcdPcb.userData = { id: `lcd_${index}`, title: 'Diagnostic LCD', desc: 'Real-time readout.' }; interactableObjects.push(lcdPcb);
+            return lcdPcb;
+        }
+
+        function createContainer(x, z, index, name) {
+            const cGroup = new THREE.Group(); cGroup.position.set(x, 0, z); scene.add(cGroup);
+            cGroup.userData = { origPos: new THREE.Vector3(x, 0, z) }; 
+            window.containerGroups.push(cGroup);
+
+            const base = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 6), metalMat); base.position.y = 0.1; cGroup.add(base);
+            
+            const lWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4, 6), containerMat); lWall.position.set(-2.9, 2.1, 0); cGroup.add(lWall);
+            registerExplode(lWall, new THREE.Vector3(-3, 0, 0));
+            const rWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4, 6), containerMat); rWall.position.set(2.9, 2.1, 0); cGroup.add(rWall);
+            registerExplode(rWall, new THREE.Vector3(3, 0, 0));
+            const bWall = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 0.2), containerMat); bWall.position.set(0, 2.1, 2.9); cGroup.add(bWall);
+            registerExplode(bWall, new THREE.Vector3(0, 0, 3));
+
+            const roofGrp = new THREE.Group(); roofGrp.position.set(0, 4.2, 0); cGroup.add(roofGrp);
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.2, 6.2), containerMat); roofGrp.add(roof);
+            const sPanel = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.1, 4.5), solarPanelMat);
+            sPanel.position.y = 0.2; sPanel.rotation.x = Math.PI/8; roofGrp.add(sPanel);
+            sPanel.userData = { id: `solar_${index}`, title: `${name} Solar Array`, desc: 'Powers local AC.' }; interactableObjects.push(sPanel);
+            registerExplode(roofGrp, new THREE.Vector3(0, 3, 0));
+
+            // Outward Swinging Front Doors (Facing -Z)
+            const doorGrp = new THREE.Group(); doorGrp.position.set(0, 2.1, -2.9); cGroup.add(doorGrp);
+            const doorL = new THREE.Group(); doorL.position.set(-2.9, 0, 0);
+            const dMeshL = new THREE.Mesh(new THREE.BoxGeometry(2.9, 4, 0.1), containerMat); dMeshL.position.x = 1.45; doorL.add(dMeshL);
+            const doorR = new THREE.Group(); doorR.position.set(2.9, 0, 0);
+            const dMeshR = new THREE.Mesh(new THREE.BoxGeometry(2.9, 4, 0.1), containerMat); dMeshR.position.x = -1.45; doorR.add(dMeshR);
+            doorGrp.add(doorL, doorR);
+            window.containerDoors.push({ left: doorL, right: doorR, targetAngle: 0 });
+
+            // Hardware Panel inside left wall
+            const hwGrp = new THREE.Group(); hwGrp.position.set(-2.8, 2.1, 0); cGroup.add(hwGrp);
+            registerExplode(hwGrp, new THREE.Vector3(-3.5, 0, 0));
+            
+            const ardPwr = createArduinoUno(`ard_pwr_${index}`, 'Power Mgmt', 'Splits yield to Battery/Fans.'); ardPwr.position.set(-0.1, -0.5, 0.8); hwGrp.add(ardPwr);
+            const ardEnv = createArduinoUno(`ard_env_${index}`, 'Env Control', 'Triggers AC Relays.'); ardEnv.position.set(-0.1, -0.5, -0.8); hwGrp.add(ardEnv);
+            const lcd = createLCD(index); lcd.position.set(-0.1, 0.5, 0); hwGrp.add(lcd);
+            const tSens = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.1), new THREE.MeshBasicMaterial({color:0xffaa00})); tSens.position.set(0, 1.0, 0); hwGrp.add(tSens);
+            tSens.userData = { id: `sens_${index}`, title: 'DHT22 Sensor', desc: 'Reads Temp & Hum.' }; interactableObjects.push(tSens);
+            const buzz = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.1), new THREE.MeshBasicMaterial({color:0x000000})); buzz.position.set(0, 1.2, 0); buzz.rotation.z=Math.PI/2; hwGrp.add(buzz);
+            buzz.userData = { id: `buzz_${index}`, title: 'Buzzer', desc: 'Sounds on breach.' }; interactableObjects.push(buzz);
+
+            // Dual AC Fans
+            const acGrp = new THREE.Group(); acGrp.position.set(0, 3.2, 3.1); cGroup.add(acGrp);
+            registerExplode(acGrp, new THREE.Vector3(0, 0, 3.5));
+            const acBody = new THREE.Mesh(new THREE.BoxGeometry(4, 1.2, 0.6), darkMetalMat); acGrp.add(acBody);
+            
+            const fanBladeGrp1 = new THREE.Group(); fanBladeGrp1.position.set(-1.0, 0, -0.32);
+            const fanBladeGrp2 = new THREE.Group(); fanBladeGrp2.position.set(1.0, 0, -0.32);
+            for(let j=0; j<4; j++) {
+                const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.05), metalMat);
+                const p1 = new THREE.Group(); p1.rotation.z = (Math.PI/2) * j; p1.add(b1); fanBladeGrp1.add(p1);
+                const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.05), metalMat);
+                const p2 = new THREE.Group(); p2.rotation.z = (Math.PI/2) * j; p2.add(b2); fanBladeGrp2.add(p2);
+            }
+            acGrp.add(fanBladeGrp1, fanBladeGrp2);
+            window.acFans.push({f1: fanBladeGrp1, f2: fanBladeGrp2});
+
+            // Shelves
+            const shelfGrp = new THREE.Group(); shelfGrp.position.set(0, 0, 0); cGroup.add(shelfGrp);
+            const s1 = new THREE.Mesh(new THREE.BoxGeometry(5, 0.1, 3), metalMat); s1.position.set(0, 1.0, 1); shelfGrp.add(s1);
+            const s2 = new THREE.Mesh(new THREE.BoxGeometry(5, 0.1, 3), metalMat); s2.position.set(0, 2.2, 1); shelfGrp.add(s2);
+            registerExplode(shelfGrp, new THREE.Vector3(0, 1, 0));
+
+            return cGroup;
+        }
+
+        farmZPositions.forEach((z, i) => { createContainer(40, z, i, state.containers[i].name); });
+
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(20, 100), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+        road.rotation.x = -Math.PI / 2; road.position.set(80, 0.01, 0); road.receiveShadow = true; scene.add(road);
+        const roadLine = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 100), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+        roadLine.rotation.x = -Math.PI / 2; roadLine.position.set(80, 0.02, 0); scene.add(roadLine);
+
+        const truck = new THREE.Group();
+        truck.position.set(80, 0, -80); // Start off-screen
+        scene.add(truck);
+        
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(6, 0.5, 20), darkMetalMat); chassis.position.y = 1.25; chassis.castShadow = true; truck.add(chassis);
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 4), new THREE.MeshStandardMaterial({color: 0x1d4ed8})); cabin.position.set(0, 3.5, 8); cabin.castShadow = true; truck.add(cabin);
+        const truckSolar = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.1, 3.5), solarPanelMat); truckSolar.position.set(0, 5.55, 8); truckSolar.castShadow = true; truck.add(truckSolar);
+        
+        const truckWheels = [];
+        const wheelGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.8, 24); const wheelMat = new THREE.MeshStandardMaterial({color: 0x111111});
+        [ [3.4, 1.2, 8], [-3.4, 1.2, 8], [3.4, 1.2, -6], [-3.4, 1.2, -6], [3.4, 1.2, -9], [-3.4, 1.2, -9] ].forEach(pos => {
+            const w = new THREE.Mesh(wheelGeo, wheelMat); w.rotation.z = Math.PI/2; w.position.set(pos[0], pos[1], pos[2]); w.castShadow = true; truck.add(w); truckWheels.push(w);
+        });
+
+        // Raycasting for Inspector
+        const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+        container.addEventListener('mousemove', (e) => {
+            const rect = container.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / container.clientWidth) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / container.clientHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactableObjects, false);
+            container.style.cursor = intersects.length > 0 ? 'pointer' : 'grab';
+        });
+
+        container.addEventListener('click', () => {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactableObjects, false);
+            if (intersects.length > 0 && intersects[0].object.userData.title) {
+                const ud = intersects[0].object.userData;
+                document.getElementById('hardware-inspector').classList.remove('hidden');
+                document.getElementById('hardware-inspector').classList.add('flex');
+                document.getElementById('hw-title').innerText = ud.title;
+                document.getElementById('hw-desc').innerText = ud.desc;
+                
+                const idx = parseInt(ud.id.split('_').pop());
+                let dat = 'Online';
+                if(ud.id.startsWith('solar')) dat = `Output: ${state.containers[idx].solarPower.toFixed(0)}W`;
+                if(ud.id.startsWith('lcd') || ud.id.startsWith('sens')) dat = `T: ${state.containers[idx].temp.toFixed(1)}C | H: ${state.containers[idx].hum.toFixed(0)}%`;
+                document.getElementById('hw-data').innerText = dat;
+            } else { closeInspector(); }
+        });
+
+        function closeInspector() {
+            document.getElementById('hardware-inspector').classList.add('hidden');
+            document.getElementById('hardware-inspector').classList.remove('flex');
+        }
+
+        function toggleDismantle() {
+            state.dismantled = !state.dismantled;
+            const btn = document.getElementById('btn-dismantle');
+            if(state.dismantled) {
+                btn.className = "bg-blue-600 border border-blue-700 text-xs font-bold px-4 py-2.5 rounded-lg transition-colors text-white shadow-md backdrop-blur flex items-center gap-2";
+                containerMat.opacity = 0.2;
+            } else {
+                btn.className = "bg-white/95 hover:bg-white border-2 border-slate-300 text-xs font-bold px-4 py-2.5 rounded-lg transition-colors text-slate-800 shadow-lg backdrop-blur flex items-center gap-2";
+                containerMat.opacity = 1.0;
+            }
+        }
+
+        function updateAgentUI(activeIdx) {
+            for(let i=1; i<=7; i++) {
+                const el = document.getElementById(`sa-${i}`);
+                if (i === activeIdx) {
+                    el.className = "p-3 rounded-xl border agent-active transition-all flex items-center gap-3";
+                    el.querySelector('p:first-of-type').classList.replace('text-white', 'text-blue-800');
+                    el.querySelector('p:last-of-type').classList.replace('text-slate-400', 'text-blue-600');
+                } else {
+                    el.className = "p-3 rounded-xl border border-slate-700 bg-slate-800/50 transition-all flex items-center gap-3";
+                    el.querySelector('p:first-of-type').classList.remove('text-blue-800');
+                    el.querySelector('p:first-of-type').classList.add('text-white');
+                    el.querySelector('p:last-of-type').classList.remove('text-blue-600');
+                    el.querySelector('p:last-of-type').classList.add('text-slate-400');
+                }
+            }
+            if(activeIdx > 0 && activeIdx < 7) {
+                document.getElementById('main-agent-status').innerText = `PROCESSING (SA-${activeIdx})`;
+                document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white";
+                document.getElementById('main-progress').style.width = `${(activeIdx/6)*100}%`;
+            }
+        }
+
+        function triggerFault() {
+            state.faultActive = true;
+            document.getElementById('btn-fault').classList.add('hidden');
+            document.getElementById('btn-clear-fault').classList.remove('hidden');
+            document.getElementById('main-agent-status').innerText = `FAULT INJECTED`;
+            document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white animate-pulse";
+        }
+        function clearFault() {
+            state.faultActive = false; stopAlarm();
+            document.getElementById('btn-fault').classList.remove('hidden');
+            document.getElementById('btn-clear-fault').classList.add('hidden');
+            document.getElementById('main-agent-status').innerText = state.isRunning ? `RUNNING` : `STANDBY`;
+            document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white";
+        }
+
+        function startContinuousSimulation() {
+            if (state.isRunning || state.logisticsStatus !== 'IDLE') return;
+            state.isRunning = true; initAudio();
+            
+            document.getElementById('btn-start').classList.add('hidden');
+            document.getElementById('btn-stop').classList.remove('hidden');
+            document.getElementById('main-agent-status').innerText = "SYSTEM ACTIVE";
+            document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white";
+            
+            startCycle(0);
+        }
+
+        function stopSimulation() {
+            state.isRunning = false;
+            document.getElementById('btn-start').classList.remove('hidden');
+            document.getElementById('btn-stop').classList.add('hidden');
+            document.getElementById('main-agent-status').innerText = "STOPPED";
+            document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white";
+        }
+
+        let activeVeggie = null; let activeBag = null;
+        let targetPos = new THREE.Vector3();
+        let activeCamPos = new THREE.Vector3(0, 40, 120);
+        let activeCamLook = new THREE.Vector3(0, 0, 0);
+
+        function startCycle(index) {
+            if(!state.isRunning || state.logisticsStatus !== 'IDLE') {
+                if(state.isRunning) setTimeout(() => startCycle(index), 1000); // Wait for truck
+                return; 
+            }
+            state.cycleIndex = index % 3;
+            const type = state.produceTypes[state.cycleIndex];
+            
+            if(activeVeggie) scene.remove(activeVeggie);
+            if(type === 'Carrot') activeVeggie = createCarrot();
+            if(type === 'Tomato') activeVeggie = createTomato();
+            if(type === 'Cabbage') activeVeggie = createCabbage();
+            
+            const startZ = farmZPositions[state.cycleIndex];
+            activeVeggie.position.set(-110, 0.5, startZ); scene.add(activeVeggie);
+            
+            // UI Reset
+            document.getElementById('ai-type').innerText = '--';
+            document.getElementById('wt-pre').innerText = '-- g';
+            document.getElementById('wt-post').innerText = '-- g';
+            document.getElementById('ai-route').innerText = 'Pending';
+            
+            runSequence(type, startZ);
+        }
+
+        function runSequence(type, startZ) {
+            if(!state.isRunning) return;
+            
+            // SA-1: Cultivation & Pre-weight
+            updateAgentUI(1); 
+            const preWt = (Math.random()*50 + 100).toFixed(1);
+            document.getElementById('wt-pre').innerText = `${preWt} g`;
+            
+            targetPos.set(-80, 1.5, startZ);
+            activeCamPos.set(-110, 30, startZ + 40); activeCamLook.set(-80, 0, startZ);
+
+            setTimeout(() => {
+                if(!state.isRunning) return;
+                targetPos.set(-80, 1.5, 0); // Move to trunk center
+                
+                setTimeout(() => {
+                    if(!state.isRunning) return;
+                    
+                    // SA-2: Washer
+                    updateAgentUI(2);
+                    targetPos.set(-60, 1.5, 0);
+                    activeCamPos.set(-60, 20, 30); activeCamLook.set(-60, 0, 0);
+                    
+                    setTimeout(() => {
+                        if(!state.isRunning) return;
+                        const postWt = (preWt * 0.95).toFixed(1); // Water loss/clean
+                        document.getElementById('wt-post').innerText = `${postWt} g`;
+
+                        // SA-3: Dryer
+                        updateAgentUI(3);
+                        targetPos.set(-40, 1.5, 0);
+                        activeCamPos.set(-40, 20, 30); activeCamLook.set(-40, 0, 0);
+                        window.isDrying = true;
+                        
+                        setTimeout(() => {
+                            if(!state.isRunning) return;
+                            window.isDrying = false;
+                            
+                            // SA-4: Packager & SA-5 Router
+                            updateAgentUI(4);
+                            targetPos.set(-20, 1.5, 0);
+                            activeCamPos.set(-20, 20, 30); activeCamLook.set(-20, 0, 0);
+                            
+                            setTimeout(() => {
+                                if(!state.isRunning) return;
+                                
+                                // Apply Color Bag
+                                activeBag = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.0, 16), bagMats[type]);
+                                activeVeggie.add(activeBag);
+                                
+                                // SA-5: Routing
+                                updateAgentUI(5);
+                                document.getElementById('ai-type').innerText = type;
+                                document.getElementById('ai-route').innerText = state.containers[state.cycleIndex].name.split(':')[0];
+                                
+                                window.aiLaser.position.set(-20, 1.5, 0);
+                                setTimeout(() => window.aiLaser.position.set(0, 10, 0), 1000);
+
+                                const cIdx = state.cycleIndex;
+                                const targetZ = farmZPositions[cIdx];
+                                
+                                setTimeout(() => {
+                                    if(!state.isRunning) return;
+                                    targetPos.set(25, 1.5, 0); // Move to branch
+                                    
+                                    setTimeout(() => {
+                                        if(!state.isRunning) return;
+                                        targetPos.set(25, 1.5, targetZ); // Move to container Z
+                                        activeCamPos.set(25, 20, targetZ + 30); activeCamLook.set(40, 0, targetZ);
+                                        
+                                        setTimeout(() => {
+                                            if(!state.isRunning) return;
+                                            // SA-6: Container Env
+                                            updateAgentUI(6);
+                                            window.containerDoors[cIdx].targetAngle = -Math.PI/1.5; // Open doors outwards
+                                            
+                                            setTimeout(() => {
+                                                if(!state.isRunning) return;
+                                                targetPos.set(40, 1.5, targetZ - 1.0); // Inside container
+                                                
+                                                setTimeout(() => {
+                                                    if(!state.isRunning) return;
+                                                    window.containerDoors[cIdx].targetAngle = 0; // Close doors
+                                                    window.containerGroups[cIdx].attach(activeVeggie);
+                                                    activeVeggie = null;
+                                                    
+                                                    // Update Capacity
+                                                    state.containers[cIdx].inventory++;
+                                                    document.getElementById(`cap-c${cIdx+1}`).innerText = `${state.containers[cIdx].inventory} / ${state.maxCap}`;
+                                                    document.getElementById(`bar-c${cIdx+1}`).style.width = `${(state.containers[cIdx].inventory / state.maxCap) * 100}%`;
+                                                    
+                                                    if(state.containers[cIdx].inventory >= state.maxCap) {
+                                                        // Trigger SA-7 Logistics
+                                                        triggerLogistics(cIdx);
+                                                    } else {
+                                                        setTimeout(() => startCycle(state.cycleIndex + 1), 1000);
+                                                    }
+                                                }, 1000);
+                                            }, 1000);
+                                        }, 1000);
+                                    }, 1000);
+                                }, 1000);
+                            }, 1000);
+                        }, 2000);
+                    }, 1500);
+                }, 1000);
+            }, 1000);
+        }
+
+        function triggerLogistics(cIdx) {
+            updateAgentUI(7);
+            state.logisticsStatus = 'DISPATCHED';
+            state.targetContainerIdx = cIdx;
+            
+            document.getElementById('main-agent-status').innerText = "SA-7 LOGISTICS ACTIVE";
+            document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white animate-pulse";
+        }
+
+        // Telemetry loop for SA-6
+        setInterval(() => {
+            let alarmTriggered = false;
+            
+            state.containers.forEach((c, i) => {
+                if(!state.faultActive) {
+                    c.temp += (Math.random() - 0.5) * 0.4;
+                    if(c.temp < c.target - 0.5) c.temp += 0.2;
+                    if(c.temp > c.target + 0.5) c.temp -= 0.2;
+                    c.solarPower = 120 + (Math.random() * 20);
+                } else {
+                    c.temp += 1.0; c.solarPower = 0;
+                }
+
+                c.fansActive = c.temp > c.target + 1.5;
+                if (c.temp > c.target + 2.5) alarmTriggered = true;
+                
+                let pwrToBattery = c.solarPower - (c.fansActive ? 50 : 0);
+                c.battery = Math.min(100, Math.max(0, c.battery + (pwrToBattery * 0.01)));
+
+                if(c.fansActive && window.acFans[i]) {
+                    window.acFans[i].f1.rotation.z += 0.5; window.acFans[i].f2.rotation.z += 0.5;
+                }
+                
+                if(window.lcdCanvases[i]) {
+                    const lc = window.lcdCanvases[i];
+                    lc.ctx.fillStyle = '#a3e635'; lc.ctx.fillRect(0, 0, 256, 64);
+                    lc.ctx.fillStyle = '#000000'; lc.ctx.font = 'bold 36px monospace';
+                    lc.ctx.fillText(`T:${c.temp.toFixed(1)} H:${c.hum.toFixed(0)}`, 5, 45);
+                    lc.tex.needsUpdate = true;
+                }
+
+                if(i===0) { state.history.c1.push(c.temp); state.history.c1.shift(); }
+                if(i===1) { state.history.c2.push(c.temp); state.history.c2.shift(); }
+                if(i===2) { state.history.c3.push(c.temp); state.history.c3.shift(); }
+            });
+
+            telemetryChart.update();
+
+            if(alarmTriggered && !state.dismantled) playAlarm();
+            else if(!state.faultActive) stopAlarm();
+
+        }, 1000);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if(activeVeggie && state.isRunning) {
+                activeVeggie.position.lerp(targetPos, 0.08);
+            }
+
+            if(state.isRunning) {
+                camera.position.lerp(activeCamPos, 0.03);
+                controls.target.lerp(activeCamLook, 0.03);
+            }
+
+            // SA-7 Truck Logic Engine
+            if(state.logisticsStatus !== 'IDLE') {
+                const cIdx = state.targetContainerIdx;
+                const c = window.containerGroups[cIdx];
+                const targetZ = farmZPositions[cIdx];
+
+                activeCamPos.set(100, 40, truck.position.z + 40); activeCamLook.set(80, 0, truck.position.z);
+
+                if(state.logisticsStatus === 'DISPATCHED') {
+                    truck.position.z += (targetZ - truck.position.z) * 0.05;
+                    truckWheels.forEach(w => w.rotation.x -= 0.1);
+                    if(Math.abs(truck.position.z - targetZ) < 0.5) {
+                        truck.position.z = targetZ; state.logisticsStatus = 'LOADING';
+                    }
+                } 
+                else if (state.logisticsStatus === 'LOADING') {
+                    if(c.position.y < 8 && c.position.x < 50) c.position.y += 0.2; // Lift
+                    else if (c.position.x < 80) c.position.x += 0.2; // Move over truck
+                    else if (c.position.y > 1.5) c.position.y -= 0.2; // Drop
+                    else {
+                        truck.attach(c); state.logisticsStatus = 'DELIVERING';
+                    }
+                }
+                else if (state.logisticsStatus === 'DELIVERING') {
+                    truck.position.z += 0.5; truckWheels.forEach(w => w.rotation.x -= 0.2);
+                    if(truck.position.z > 160) {
+                        // Empty it
+                        const children = [...c.children];
+                        children.forEach(child => { if(child.type === 'Group' && !child.userData.origPos) c.remove(child); }); // Remove veggies
+                        state.containers[cIdx].inventory = 0;
+                        document.getElementById(`cap-c${cIdx+1}`).innerText = `0 / ${state.maxCap}`;
+                        document.getElementById(`bar-c${cIdx+1}`).style.width = `0%`;
+                        state.logisticsStatus = 'RETURNING';
+                    }
+                }
+                else if (state.logisticsStatus === 'RETURNING') {
+                    truck.position.z -= 0.5; truckWheels.forEach(w => w.rotation.x += 0.2);
+                    if(truck.position.z <= targetZ) {
+                        truck.position.z = targetZ; state.logisticsStatus = 'UNLOADING';
+                    }
+                }
+                else if (state.logisticsStatus === 'UNLOADING') {
+                    scene.attach(c);
+                    if(c.position.y < 8 && c.position.x > 70) c.position.y += 0.2; // Lift
+                    else if (c.position.x > 40) c.position.x -= 0.2; // Move back
+                    else if (c.position.y > 0) c.position.y -= 0.2; // Drop
+                    else {
+                        c.position.copy(c.userData.origPos);
+                        state.logisticsStatus = 'TRUCK_EXIT';
+                    }
+                }
+                else if (state.logisticsStatus === 'TRUCK_EXIT') {
+                    truck.position.z -= 0.5; truckWheels.forEach(w => w.rotation.x += 0.2);
+                    if(truck.position.z < -100) {
+                        state.logisticsStatus = 'IDLE';
+                        document.getElementById('main-agent-status').innerText = "SYSTEM ACTIVE";
+                        document.getElementById('main-agent-status').className = "px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white";
+                        setTimeout(() => startCycle(state.cycleIndex + 1), 500); // Resume loop
+                    }
+                }
+            }
+
+            // Explode Lerp
+            window.explodableParts.forEach(p => {
+                const tg = state.dismantled ? p.target : p.orig;
+                p.mesh.position.lerp(tg, 0.08);
+            });
+
+            // Door physics
+            window.containerDoors.forEach(d => {
+                d.left.rotation.y += (-d.targetAngle - d.left.rotation.y) * 0.1; 
+                d.right.rotation.y += (d.targetAngle - d.right.rotation.y) * 0.1; 
+            });
+
+            if(window.isDrying) window.dryerFans.forEach(f => f.rotation.y += 0.4);
+
+            // Snow animation
+            const positions = snowSys.geometry.attributes.position.array;
+            for(let i=1; i<positions.length; i+=3) {
+                positions[i] -= 0.2; // Fall down
+                if(positions[i] < 0) positions[i] = 80;
+            }
+            snowSys.geometry.attributes.position.needsUpdate = true;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        const resizeObserver = new ResizeObserver(() => {
+            if(container.clientWidth > 0 && container.clientHeight > 0) {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+        });
+        resizeObserver.observe(container);
+
+    </script>
+</body>
+</html>
